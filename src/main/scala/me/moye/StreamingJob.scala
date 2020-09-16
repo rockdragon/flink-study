@@ -20,10 +20,8 @@ package me.moye
 
 import org.apache.flink.streaming.api.scala._
 import org.apache.flink.streaming.api.windowing.time.Time
-import java.util.Properties
-
-import org.apache.flink.streaming.api.functions.sink.SinkFunction
-import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
+import org.apache.flink.streaming.connectors.kafka.FlinkKafkaProducer
+import org.apache.flink.streaming.util.serialization.KeyedSerializationSchema
 
 /**
  * Skeleton for a Flink Streaming Job.
@@ -51,28 +49,25 @@ object StreamingJob {
       .timeWindow(Time.seconds(5))
       .sum(1)
 
+    val servers = "10.129.15.179:9092,10.129.15.229:9092,10.129.15.76:9092"
+    val topic = "test_topic"
+    val myProducer = new FlinkKafkaProducer[(String, Int)](
+      servers,
+      topic,
+      new KeyedSerializationSchema[(String, Int)] {
+        override def serializeKey(t: (String, Int)): Array[Byte] = "".getBytes
+
+        override def serializeValue(t: (String, Int)): Array[Byte] = "{\"%s\":%d}".format(t._1, t._2).getBytes
+
+        override def getTargetTopic(t: (String, Int)): String = topic
+      }
+    )
+
     windowWordCount
-      .addSink(new SinkFunction[(String, Int)] {
-        override def invoke(in: (String, Int)): Unit = {
-          sendMessage("(%s,%d)".format(in._1, in._2))
-        }
-      })
+      .addSink(myProducer)
       .setParallelism(1)
 
     // execute program
     env.execute("Socket Window WordCount")
-  }
-
-  def sendMessage(message: String): Unit = {
-    val props = new Properties()
-    props.put("bootstrap.servers", "10.129.15.179:9092,10.129.15.229:9092,10.129.15.76:9092")
-    props.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer")
-    props.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer")
-    val topic = "test_topic"
-    val producer = new KafkaProducer[String, String](props)
-    val jsonData = "{\"message\": \"%s\"}".format(message)
-    val data = new ProducerRecord[String, String](topic, jsonData)
-    producer.send(data)
-    producer.close()
   }
 }

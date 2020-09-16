@@ -18,10 +18,10 @@
 
 package me.moye
 
+import org.apache.flink.api.common.serialization.SerializationSchema
 import org.apache.flink.streaming.api.scala._
 import org.apache.flink.streaming.api.windowing.time.Time
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaProducer
-import org.apache.flink.streaming.util.serialization.KeyedSerializationSchema
 
 /**
  * Skeleton for a Flink Streaming Job.
@@ -54,12 +54,9 @@ object StreamingJob {
     val myProducer = new FlinkKafkaProducer[(String, Int)](
       servers,
       topic,
-      new KeyedSerializationSchema[(String, Int)] {
-        override def serializeKey(t: (String, Int)): Array[Byte] = "".getBytes
-
-        override def serializeValue(t: (String, Int)): Array[Byte] = "{\"%s\":%d}".format(t._1, t._2).getBytes
-
-        override def getTargetTopic(t: (String, Int)): String = topic
+      new SerializationSchema[(String, Int)] {
+        override def serialize(t: (String, Int)): Array[Byte] =
+          "{\"%s\":%d}".format(t._1, t._2).getBytes
       }
     )
 
